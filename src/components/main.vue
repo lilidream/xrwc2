@@ -1,6 +1,20 @@
 <template>
   <div class="xrwc">
-    <div class="main">
+  <el-container>
+  <el-header height="40px">
+    <div class="top">
+      TYHC -  仙人微彩模拟器
+      <div class="topBtn">
+        <el-tooltip class="item" effect="dark" content="切换左右布局" placement="bottom-end">
+          <el-button  @click="leftRight = !leftRight">
+            <img src="../assets/swap.svg">
+          </el-button>
+        </el-tooltip>
+      </div>
+    </div>
+  </el-header>
+  <el-main>
+    <div :class="leftRight? 'main mleft' : 'main mright'">
       <div class="left">
         <!-- 信息栏 -->
         <el-collapse v-model="infoActive" accordion class="info">
@@ -54,6 +68,18 @@
 
         <!-- 模拟器 -->
         <div class="gameBox">
+          <!-- 覆盖层 -->
+          <div class="gameCover" v-if="gameCover">
+            <div style="font-size:18px">选择模式</div>
+            <ul>
+              <li>自由模式：随心所欲地玩仙人微彩</li>
+              <li>比赛模式：每一局10张仙人微彩，根据一局的市场与得到的金蝶币计算分数，可上传结果并排名</li>
+            </ul>
+            <div>
+              <el-button @click="mode1">自由模式</el-button>
+              <el-button @click="mode2">比赛模式</el-button>
+            </div>
+          </div>
           <el-alert :title="gameMessage" :type="gameMessageType" center show-icon :closable="false"> </el-alert>
           <table class="table2" border="0" cellspacing="0" cellpadding="0">
             <tr>
@@ -92,18 +118,55 @@
               <td><div :class="gameCal[3].class"><div>{{gameCal[3].sum}}</div>${{gameCal[3].coins}}<div></div><i class="el-icon-arrow-up arrowUpLeft"></i></div></td>
             </tr>
           </table>
+          <div class="gameBtn">
+            <el-button @click="newGame" type="primary" plain style="width:200px">下一张</el-button>
+          </div>
         </div>
       </div>
+
+
       <div class="right">
+        <div class="rightTop">
+          <div class="recordBox">
+            <Record-list :gameData="gameRecordStatic"/>
+          </div>
+          <div class="recordChartBox">
+            <Record-chart :gameData="gameRecordStatic" v-on:statistic="displayStatic"/>
+          </div>
+        </div>
       </div>
     </div>
+  </el-main>
+  <el-footer>
+    <div class="foot">
+      <div>©2022 Lilidream</div>|
+      <div>
+        <img src="../assets/logo.png" style="width:25px;height:25px"> TOYOHAY Clouds
+      </div>|
+      <div>
+        <img src="../assets/vue.svg" style="width:20px;height:20px"> Vue.js
+      </div>|
+      <div>
+        <img src="../assets/element.svg" style="height:20px">
+      </div>|
+      <div>
+        AntV G2
+      </div>
+    </div>
+  </el-footer>
+  </el-container>
   </div>
 </template>
 
 <script>
-
+import RecordList from './recordList.vue';
+import RecordChart from './recordChart.vue';
 export default {
   name: "main",
+  components:{
+    RecordList,
+    RecordChart
+  },
   data(){
     return {
       infoActive: '3',
@@ -116,6 +179,7 @@ export default {
         }
       ],
       gameStep:0, // 已经开了几个数字
+      gameOpened: [],
       btnDisable: [true,true,true,true,true,true,true,true,true],
       linkIndex: [[6,7,8], [3,4,5], [0,1,2], [0,4,8], [0,3,6], [1,4,7], [2,5,8], [2,4,6]],
       coin: [10000,36,720,360,80,252,108,72,54,180,72,180,119,36,306,1080,144,1800,3600],
@@ -126,12 +190,46 @@ export default {
       gameMessage:"点击开始",
       gameMessageType:"info",
       onGame:false,
+      gameRecord:[],
+      gameRecordStatic:[],
+      gameMax:{},
+      openedLine:-1,
+      gameResult:{},
+      playTimes:0,
+      showStatistic: true,
+      leftRight:true,
+      gameCover: true,
     }
   },
   created(){
-    this.newGame()
+    this.init();
   },
   methods:{
+    init(){
+      let d = [];
+      let d2 = [];
+      for(var i=0; i<9; i++){
+        d.push({
+          num: -1,
+          display:"",
+          type:"info",
+          bg:""
+        });
+        d2.push({
+          num:'?',
+          coins:"?",
+          class:"infoDiv"
+        })
+      }
+      this.gameData = d;
+      this.gameCal = d2;
+    },
+    displayStatic(v){
+      this.showStatistic = v;
+      if(v){
+        this.gameRecordStatic = this.gameRecord;
+      }
+    },
     randomArray(array){
       let l = array.length;
       let index, temp;
@@ -145,11 +243,12 @@ export default {
       return array;
     },
 
+    // 卡片几时和开始页面
     newGame(){
       let a = [1,2,3,4,5,6,7,8,9];
       a = this.randomArray(a);
       this.gameArray = a;
-      let fristShow = Math.floor(Math.random()*9) - 1;
+      let fristShow = Math.floor(Math.random()*9);
       let data = [];
       a.forEach((val, index)=>{
         data.push({
@@ -161,6 +260,7 @@ export default {
       })
       this.gameData = data;
       this.gameStep = 1;
+      this.gameOpened = [fristShow];
       this.setGameInfo("请点开第"+(this.gameStep+1)+"个数字");
       this.onGame = true;
       this.calGame();
@@ -190,6 +290,7 @@ export default {
           }
         })
         d[maxi].class = "infoDiv infoDivMax";
+        this.gameMax = {max:max, maxi: maxi}
       }
       this.gameCal = d;
     },
@@ -197,11 +298,14 @@ export default {
     play(id){
       if(this.onGame){
         if(this.gameStep < 4){
-          this.gameData[id].display = this.gameData[id].num;
-          this.gameData[id].type = "success";
-          this.gameStep++;
-          this.setGameInfo("请点开第"+(this.gameStep+1)+"个数字");
-          this.calGame();
+          if (!this.gameOpened.includes(id)){
+            this.gameData[id].display = this.gameData[id].num;
+            this.gameData[id].type = "success";
+            this.gameStep++;
+            this.setGameInfo("请点开第"+(this.gameStep+1)+"个数字");
+            this.calGame();
+            this.gameOpened.push(id);
+          }
         }
         if(this.gameStep >= 4){
           this.setGameInfo("请点击箭头选择一列");
@@ -224,12 +328,43 @@ export default {
           }
         })
         this.onGame = false;
+        this.openedLine = id;
+        this.gameResult = {sum: sum, coins:coins}
+        this.playTimes++;
         this.calGame();
+        this.recordGame();
       }
     },
     setGameInfo(msg, type){
       this.gameMessage = msg;
       this.gameMessageType = type || "info";
+    },
+    recordGame(){
+      if(!this.onGame){
+        let d = {
+          number: this.gameData.map(v=>v.num),
+          open: this.gameOpened,
+          max: this.gameMax.max,
+          maxLine: this.gameMax.maxi,
+          openLine: this.openedLine,
+          sum: this.gameResult.sum,
+          coins: this.gameResult.coins,
+          time: new Date().getTime(),
+          index: this.playTimes
+        }
+        console.log(d);
+        this.gameRecord.push(d);
+        if (this.showStatistic){
+          this.gameRecordStatic.push(d);
+        }
+      }
+    },
+    mode1(){
+      this.gameCover=false;
+      this.newGame();
+    },
+    mode2(){
+      this.$message.error("比赛模式正在开发中")
     }
   }
 }
@@ -239,14 +374,53 @@ export default {
 .xrwc{
   width: 100%;
 }
+.el-header{
+  padding: 0;
+}
+.top{
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  background-color: white;
+  line-height: 40px;
+  font-size: 18px;
+  position: relative;
+}
+.topBtn{
+  position: absolute;
+  right: 10px;
+  top: 7px;
+}
+.topBtn img{
+  width: 26px;
+  height: 26px;
+}
+.topBtn .el-button{
+  padding: 0px;
+  border: none;
+}
 .main{
   width: 100%;
   display: flex;
-  justify-content: space-around;
+  justify-content: center;
+}
+.mleft{
+  flex-direction: row;
+}
+.mright{
+  flex-direction: row-reverse;
 }
 .left{
   width: 400px;
+  background-color: #ffffff;
+  padding: 10px;
+  box-shadow: 0 0 8px 0 #0000001c;
+  border-radius: 20px;
+  margin: 0 10px;
   /* border: 1px solid #888; */
+}
+.right{
+  margin: 0 10px;
 }
 .info{
   padding: 10px;
@@ -262,14 +436,47 @@ export default {
 }
 .gameBox{
   width: 350px;
+  padding: 20px;
+  margin: 20px auto;
+  position: relative;
+}
+.gameCover{
+  width: 100%;
+  height: 100%;
+  background-color: #000000d7;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 999;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+}
+.gameCover div{
+  width: 70%;
+  display: flex;
+  justify-content: center;
+}
+.gameCover ul{
+  width: 70%;
+  font-size: 14px;
 }
 .table2{
   width: 350px;
   margin: 0 auto;
 }
+.table2 tr{
+  display: flex;
+}
 .table2 td{
   width: 70px;
   height: 70px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .numBtn{
   width: 60px;
@@ -329,5 +536,45 @@ export default {
 }
 .selected{
   background-color: #d6eaff;
+}
+
+.recordBox{
+  background-color: #ffffff;
+  padding: 10px;
+  box-shadow: 0 0 8px 0 #0000001c;
+  border-radius: 20px;
+  width: 500px;
+}
+.gameBtn{
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  margin-top: 10px;
+}
+.rightTop{
+  width: 1300px;
+  display: flex;
+  justify-content: space-between;
+}
+.recordChartBox{
+  width: 750px;
+  background-color: #ffffff;
+  padding: 10px;
+  box-shadow: 0 0 8px 0 #0000001c;
+  border-radius: 20px;
+  /* height: 200px; */
+}
+.foot{
+  width:100%;
+  color: #888;
+  font-size: 14px;
+}
+.foot, .foot div{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.foot div{
+  margin: 0 10px;
 }
 </style>
