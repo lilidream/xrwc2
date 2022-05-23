@@ -15,6 +15,11 @@
   </el-header>
   <el-main>
     <div :class="leftRight? 'main mleft' : 'main mright'">
+      <div class="right1">
+        <div class="recordBox">
+          <Record-list :gameData="gameRecordStatic"/>
+        </div>
+      </div>
       <div class="left">
         <!-- 信息栏 -->
         <el-collapse v-model="infoActive" accordion class="info">
@@ -70,15 +75,47 @@
         <div class="gameBox">
           <!-- 覆盖层 -->
           <div class="gameCover" v-if="gameCover">
-            <div style="font-size:18px">选择模式</div>
-            <ul>
-              <li>自由模式：随心所欲地玩仙人微彩</li>
-              <li>比赛模式：每一局10张仙人微彩，根据一局的市场与得到的金蝶币计算分数，可上传结果并排名</li>
-            </ul>
-            <div>
-              <el-button @click="mode1">自由模式</el-button>
-              <el-button @click="mode2">比赛模式</el-button>
+            <div class="cover1" v-if="coverLayer == 1">
+              <div style="font-size:18px">选择模式</div>
+                <ul>
+                  <li>自由模式：随心所欲地玩仙人微彩</li>
+                  <li>比赛模式：每一局10张仙人微彩，根据一局的市场与得到的金蝶币计算分数，可上传结果并排名</li>
+                </ul>
+                <div>
+                  <el-button @click="mode1">自由模式</el-button>
+                  <el-button @click="coverLayer = 2">比赛模式</el-button>
+                </div>
             </div>
+            <div class="cover1" v-if="coverLayer == 2">
+              <div>点击开始将开始<br/>比赛模式并计时</div>
+              <div style="margin-top:20px">
+                <el-button @click="mode2" type="primary">开始</el-button>
+                <el-button @click="coverLayer = 1">返回</el-button>
+              </div>
+            </div>
+            <div class="cover2" v-if="coverLayer == 3">
+              <div class="result2" style="margin-bottom:20px">比赛结果</div>
+              <div class="result">
+                <div class="result1">金蝶币奖励</div>
+                <div class="result2">{{contestResult.coins}}</div>
+              </div>
+              <div class="result">
+                <div class="result1">用时</div>
+                <div class="result2">{{contestResult.time}}秒</div>
+              </div>
+              <div class="result">
+                <div class="result1">得分</div>
+                <div class="result2">{{contestResult.point}}分</div>
+              </div>
+              <div style="margin-top:20px">
+                <el-button @click="coverLayer = 1">返回</el-button>
+                <el-button @click="uploadContest" type="primary">上传分数</el-button>
+              </div>
+            </div>
+          </div>
+          <div class="timer" v-if="gamemode==2">
+            <div>第<span>{{nowCard}}</span>张</div>
+            <div> <span>{{timer.m}}</span>:<span>{{timer.s}}</span> </div>
           </div>
           <el-alert :title="gameMessage" :type="gameMessageType" center show-icon :closable="false"> </el-alert>
           <table class="table2" border="0" cellspacing="0" cellpadding="0">
@@ -119,21 +156,17 @@
             </tr>
           </table>
           <div class="gameBtn">
-            <el-button @click="newGame" type="primary" plain style="width:200px">下一张</el-button>
+            <el-button @click="nextCard" type="primary" plain style="width:200px" v-if="nextBtn">下一张</el-button>
+            <el-button @click="showContestResult" type="primary" plain style="width:200px" v-if="resultBtn">查看结果</el-button>
           </div>
         </div>
       </div>
 
 
-      <div class="right">
-        <div class="rightTop">
-          <div class="recordBox">
-            <Record-list :gameData="gameRecordStatic"/>
-          </div>
+      <div class="right2">
           <div class="recordChartBox">
             <Record-chart :gameData="gameRecordStatic" v-on:statistic="displayStatic"/>
           </div>
-        </div>
       </div>
     </div>
   </el-main>
@@ -170,6 +203,7 @@ export default {
   data(){
     return {
       infoActive: '3',
+      cardNumberPreGame: 10,
       gameData:[
         {
           num:0, // 实际数字
@@ -199,6 +233,25 @@ export default {
       showStatistic: true,
       leftRight:true,
       gameCover: true,
+      nowCard:1,
+      coverLayer: 1,
+      timer:{
+        m: "00",
+        s: "00"
+      },
+      gamemode: 1,
+      contestTimeStart:"",
+      contestTimeEnd:"",
+      interval:"",
+      onContest: false,
+      nextBtn: true,
+      contestResult:{
+        coins:0,
+        time:0,
+        point:0
+      },
+      resultBtn:false,
+      isMaxNumber:0
     }
   },
   created(){
@@ -262,6 +315,26 @@ export default {
       this.gameStep = 1;
       this.gameOpened = [fristShow];
       this.setGameInfo("请点开第"+(this.gameStep+1)+"个数字");
+      if(this.gamemode == 2 && !this.onContest){
+        this.onContest = true;
+        this.nowCard = 1;
+        this.nextBtn = true;
+        this.isMaxNumber = 0;
+        this.resultBtn = false;
+        this.contestResult = {time: 0, coins: 0 ,point: 0};
+        this.contestTimeStart = new Date();
+        this.interval = setInterval(()=>{
+          let t = new Date();
+          let dt = t.getTime() - this.contestTimeStart.getTime();
+          dt = parseInt(dt/1000);
+          let min = Math.floor(dt / 60);
+          let s = dt - min * 60;
+          this.timer = {
+            m: min < 10 ? "0"+min : min,
+            s: s < 10 ? "0"+s : s,
+          }
+        }, 1000);
+      }
       this.onGame = true;
       this.calGame();
     },
@@ -314,6 +387,12 @@ export default {
     },
     selectLine(id){
       if(this.onGame){
+        if(this.gamemode == 2){
+          if(this.nowCard == this.cardNumberPreGame){
+            this.contestTimeEnd = new Date();
+            clearInterval(this.interval);
+          }
+        }
         let arr = this.linkIndex[id];
         let sum = 0;
         arr.forEach(v=>{
@@ -321,6 +400,14 @@ export default {
         })
         let coins = this.coin[sum-6];
         this.setGameInfo("数字和: "+sum+" ; 奖励金蝶币: "+coins, "success")
+        if(this.gamemode == 2 && this.onContest){
+          this.contestResult.coins += coins;
+          if(this.nowCard == this.cardNumberPreGame){
+            this.nextBtn = false;
+            this.resultBtn = true;
+            this.onContest = false;
+          }
+        }
         this.gameData.forEach((val, index)=>{
           this.gameData[index].display = val.num;
           if(arr.includes(index)){
@@ -364,13 +451,66 @@ export default {
       this.newGame();
     },
     mode2(){
-      this.$message.error("比赛模式正在开发中")
+      this.gameCover = false;
+      this.gamemode = 2;
+      this.newGame();
+    },
+    nextCard(){
+      if(this.gamemode == 2){
+        this.nowCard++;
+        this.newGame();
+      }else if(this.gamemode == 1){
+        this.newGame()
+      }
+    },
+    showContestResult(){
+      this.gameCover = true;
+      this.coverLayer = 3;
+      let t = ((this.contestTimeEnd.getTime()-this.contestTimeStart.getTime())/1000).toFixed(3);
+      let tp = 100*(1.053**(90-0.58*t))*0.4;
+      console.log(tp);
+      this.contestResult.time = t;
+      this.contestResult.point = parseInt(tp+this.contestResult.coins*0.6);
+    },
+    uploadContest(){
+      this.$message.error({message: "开发中"})
+
     }
   }
 }
 </script>
 
 <style scoped>
+.result{
+display: block !important;
+margin-bottom: 10px;
+}
+.result1{
+  text-align: center;
+  display: block !important;
+  color: #888;
+  width: 100% !important;
+  font-size: 14px;
+}
+.result2{
+  text-align: center;
+  display: block !important;
+  width: 100% !important;
+  font-size: 18px;
+}
+.timer{
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 8px;
+}
+.timer span{
+  padding: 5px;
+  border-radius: 5px;
+  background-color: #d6eaff;
+  margin-left: 5px;
+  margin-right: 5px;
+}
 .xrwc{
   width: 100%;
 }
@@ -454,6 +594,26 @@ export default {
   justify-content: center;
   align-items: center;
   color: white;
+}
+.cover1{
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+}
+.cover2{
+  width: 80% !important;
+  height: 80% !important;
+  border-radius: 20px;
+  background-color: #fff;
+  color:black;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
 }
 .gameCover div{
   width: 70%;

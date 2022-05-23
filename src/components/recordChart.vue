@@ -11,7 +11,8 @@
         </el-tooltip>
       </div>
     </div>
-    <div id="c1"></div>
+    <div id="c1" :class="chartData == 0 ? 'hide' : ''"></div>
+    <el-empty description="暂无数据" v-if="chartData.length == 0"/>
   </div>
 </template>
 
@@ -26,7 +27,8 @@ export default {
       sum: 0,
       std: 0,
       maxRate: 0,
-      statistic: true
+      statistic: true,
+      hideChart: true
     }
   },
   mounted(){
@@ -92,6 +94,9 @@ export default {
 </script>
 
 <style>
+.hide{
+  display: none
+}
   .chart{
     width: 100%;
     height: 300px;
@@ -99,9 +104,23 @@ export default {
   #c1{
     width: 100%;
     height: 275px;
+    margin-top: 10px;
+    margin-bottom: -10px;
   }
   .t1{
     font-size: 16px;
+    position: relative;
+  }
+  .t1::after{
+    content: '';
+    width: 100%;
+    height: 3px;
+    border-radius: 3px;
+    display: block;
+    background-color: #009BA1;
+    left: 0;
+    bottom: 0px;
+    position: absolute;
   }
 .t2{
   padding: 0 10px;
