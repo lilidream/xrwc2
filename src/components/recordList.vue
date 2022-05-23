@@ -88,13 +88,27 @@ export default {
 }
 .title{
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 .t1 img{
   width: 25px;
   height: 25px;
 }
+.t1{
+  position: relative;
+}
+.t1::after{
+    content: '';
+    width: 100%;
+    height: 3px;
+    border-radius: 3px;
+    display: block;
+    background-color: #009BA1;
+    left: 0;
+    bottom: -4px;
+    position: absolute;
+  }
 .t2{
   padding: 0 10px;
   display: flex;
