@@ -19,6 +19,9 @@
         <div class="recordBox">
           <Record-list :gameData="gameRecordStatic"/>
         </div>
+        <div class="recordBox mgt">
+          <contestRecord :gameData="contestRecord"/>
+        </div>
       </div>
       <div class="left">
         <!-- 信息栏 -->
@@ -104,8 +107,12 @@
                 <div class="result2">{{contestResult.time}}秒</div>
               </div>
               <div class="result">
-                <div class="result1">得分</div>
+                <div class="result1">金蝶币分数</div>
                 <div class="result2">{{contestResult.point}}分</div>
+              </div>
+              <div class="result">
+                <div class="result1">最大值分数</div>
+                <div class="result2">{{contestResult.point2}}分</div>
               </div>
               <div style="margin-top:20px">
                 <el-button @click="coverLayer = 1">返回</el-button>
@@ -156,6 +163,7 @@
             </tr>
           </table>
           <div class="gameBtn">
+            <el-button @click="gameCover=true;coverLayer=1" plain style="width:100px" v-if="gamemode==1">返回</el-button>
             <el-button @click="nextCard" type="primary" plain style="width:200px" v-if="nextBtn">下一张</el-button>
             <el-button @click="showContestResult" type="primary" plain style="width:200px" v-if="resultBtn">查看结果</el-button>
           </div>
@@ -166,6 +174,9 @@
       <div class="right2">
           <div class="recordChartBox">
             <Record-chart :gameData="gameRecordStatic" v-on:statistic="displayStatic"/>
+          </div>
+          <div class="recordChartBox mgt">
+            <rank/>
           </div>
       </div>
     </div>
@@ -194,11 +205,16 @@
 <script>
 import RecordList from './recordList.vue';
 import RecordChart from './recordChart.vue';
+import contestRecord from './contestRecord.vue'
+import rank from './rank.vue'
+import {PostRecord} from '../API/index.js';
 export default {
   name: "main",
   components:{
     RecordList,
-    RecordChart
+    RecordChart,
+    contestRecord,
+    rank
   },
   data(){
     return {
@@ -223,6 +239,7 @@ export default {
       }],
       gameMessage:"点击开始",
       gameMessageType:"info",
+      gameStartTime:"",
       onGame:false,
       gameRecord:[],
       gameRecordStatic:[],
@@ -248,10 +265,13 @@ export default {
       contestResult:{
         coins:0,
         time:0,
-        point:0
+        point:0,
+        maxTime:0,
+        point2:0
       },
       resultBtn:false,
-      isMaxNumber:0
+      isMaxNumber:0,
+      contestRecord:[]
     }
   },
   created(){
@@ -314,6 +334,7 @@ export default {
       this.gameData = data;
       this.gameStep = 1;
       this.gameOpened = [fristShow];
+      this.gameStartTime = new Date();
       this.setGameInfo("请点开第"+(this.gameStep+1)+"个数字");
       if(this.gamemode == 2 && !this.onContest){
         this.onContest = true;
@@ -321,7 +342,7 @@ export default {
         this.nextBtn = true;
         this.isMaxNumber = 0;
         this.resultBtn = false;
-        this.contestResult = {time: 0, coins: 0 ,point: 0};
+        this.contestResult = {time: 0, coins: 0 ,point: 0, maxTime: 0};
         this.contestTimeStart = new Date();
         this.interval = setInterval(()=>{
           let t = new Date();
@@ -400,14 +421,6 @@ export default {
         })
         let coins = this.coin[sum-6];
         this.setGameInfo("数字和: "+sum+" ; 奖励金蝶币: "+coins, "success")
-        if(this.gamemode == 2 && this.onContest){
-          this.contestResult.coins += coins;
-          if(this.nowCard == this.cardNumberPreGame){
-            this.nextBtn = false;
-            this.resultBtn = true;
-            this.onContest = false;
-          }
-        }
         this.gameData.forEach((val, index)=>{
           this.gameData[index].display = val.num;
           if(arr.includes(index)){
@@ -416,10 +429,25 @@ export default {
         })
         this.onGame = false;
         this.openedLine = id;
-        this.gameResult = {sum: sum, coins:coins}
+        this.gameResult = {
+          sum: sum,
+          coins:coins,
+          duration: new Date().getTime() - this.gameStartTime.getTime()
+        }
         this.playTimes++;
         this.calGame();
         this.recordGame();
+        if(this.gamemode == 2 && this.onContest){
+          if(this.gameMax.max == coins){
+            this.contestResult.maxTime += 1;
+          }
+          this.contestResult.coins += coins;
+          if(this.nowCard == this.cardNumberPreGame){
+            this.nextBtn = false;
+            this.resultBtn = true;
+            this.onContest = false;
+          }
+        }
       }
     },
     setGameInfo(msg, type){
@@ -437,17 +465,26 @@ export default {
           sum: this.gameResult.sum,
           coins: this.gameResult.coins,
           time: new Date().getTime(),
-          index: this.playTimes
+          index: this.playTimes,
+          duration: this.gameResult.duration
         }
         console.log(d);
         this.gameRecord.push(d);
         if (this.showStatistic){
           this.gameRecordStatic.push(d);
         }
+
+        // POST
+        PostRecord(d).then(res=>{
+          if (res.status == 200){
+            console.log(res.data.result);
+          }
+        })
       }
     },
     mode1(){
       this.gameCover=false;
+      this.gamemode = 1;
       this.newGame();
     },
     mode2(){
@@ -470,7 +507,10 @@ export default {
       let tp = 100*(1.053**(90-0.58*t))*0.4;
       console.log(tp);
       this.contestResult.time = t;
-      this.contestResult.point = parseInt(tp+this.contestResult.coins*0.6);
+      this.contestResult.point = (tp+this.contestResult.coins*0.6).toFixed(2);
+      this.gamemode = 0;
+      this.contestResult.point2 = (this.contestResult.maxTime * 2000 * 0.6 + tp).toFixed(2);
+      this.contestRecord.push(this.contestResult);
     },
     uploadContest(){
       this.$message.error({message: "开发中"})
@@ -481,6 +521,9 @@ export default {
 </script>
 
 <style scoped>
+.mgt{
+  margin-top: 20px;
+}
 .result{
 display: block !important;
 margin-bottom: 10px;
@@ -583,7 +626,7 @@ margin-bottom: 10px;
 .gameCover{
   width: 100%;
   height: 100%;
-  background-color: #000000d7;
+  background-color: #000000b9;
   position: absolute;
   left: 0;
   top: 0;
