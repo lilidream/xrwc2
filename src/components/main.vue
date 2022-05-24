@@ -208,6 +208,7 @@ import RecordChart from './recordChart.vue';
 import contestRecord from './contestRecord.vue'
 import rank from './rank.vue'
 import {PostRecord} from '../API/index.js';
+import crypteObj from '../API/cryp.js'
 export default {
   name: "main",
   components:{
@@ -480,6 +481,7 @@ export default {
             console.log(res.data.result);
           }
         })
+        console.log(crypteObj.encryptFunc(JSON.stringify(d)));
       }
     },
     mode1(){
