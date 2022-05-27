@@ -1,5 +1,16 @@
 <template>
   <div class="xrwc">
+    <el-dialog title="输入昵称上传比赛结果" :visible.sync="upLoadDialog" width="30%" >
+    <el-form ref="form" :model="form" label-width="100px" :rules="rules">
+      <el-form-item label="你的昵称：" prop="nickName">
+        <el-input v-model="form.nickName"></el-input>
+      </el-form-item>
+    </el-form>
+    <span slot="footer" class="dialog-footer">
+      <el-button @click="upLoadDialog = false">取 消</el-button>
+      <el-button type="primary" @click="uploadContestResult">确 定</el-button>
+    </span>
+    </el-dialog>
   <el-container>
   <el-header height="40px">
     <div class="top">
@@ -207,8 +218,8 @@ import RecordList from './recordList.vue';
 import RecordChart from './recordChart.vue';
 import contestRecord from './contestRecord.vue'
 import rank from './rank.vue'
-import {PostRecord} from '../API/index.js';
-import crypteObj from '../API/cryp.js'
+import {PostRecord, PostContest} from '../API/index.js';
+import md5 from '../API/cryp.js'
 export default {
   name: "main",
   components:{
@@ -268,11 +279,19 @@ export default {
         time:0,
         point:0,
         maxTime:0,
-        point2:0
+        point2:0,
+        avgPoint:0
       },
       resultBtn:false,
       isMaxNumber:0,
-      contestRecord:[]
+      contestRecord:[],
+      upLoadDialog: false,
+      form:{
+        nickName: ""
+      },
+      rules:{
+        nickName:[{required: true, message: "请输入昵称", trigger:'blur'}]
+      }
     }
   },
   created(){
@@ -469,19 +488,35 @@ export default {
           index: this.playTimes,
           duration: this.gameResult.duration
         }
-        console.log(d);
-        this.gameRecord.push(d);
+        // deep copy d
+        let d2 = JSON.parse(JSON.stringify(d));
+        this.gameRecord.push(d2);
         if (this.showStatistic){
-          this.gameRecordStatic.push(d);
+          this.gameRecordStatic.push(d2);
         }
 
         // POST
+        let texNumber = "";
+        let texOpen = "";
+        //combine number in d to a text which no space
+        d.number.forEach((val)=>{
+          texNumber += val;
+        });
+        // the same as above with open
+        d.open.forEach((val)=>{
+          texOpen += val;
+        });
+        d.number = texNumber;
+        d.open = texOpen;
+        let ver = d.time.toString()+d.duration.toString()+"toyohay"+d.number+d.open;
+        d.ver = md5(ver);
         PostRecord(d).then(res=>{
           if (res.status == 200){
-            console.log(res.data.result);
+            if(res.data.status == "error"){
+              this.$message.error("提交游戏记录失败"+res.data.msg);
+            }
           }
         })
-        console.log(crypteObj.encryptFunc(JSON.stringify(d)));
       }
     },
     mode1(){
@@ -505,18 +540,53 @@ export default {
     showContestResult(){
       this.gameCover = true;
       this.coverLayer = 3;
-      let t = ((this.contestTimeEnd.getTime()-this.contestTimeStart.getTime())/1000).toFixed(3);
+      let t = (this.contestTimeEnd.getTime()-this.contestTimeStart.getTime());
       let tp = 100*(1.053**(90-0.58*t))*0.4;
       console.log(tp);
-      this.contestResult.time = t;
-      this.contestResult.point = (tp+this.contestResult.coins*0.6).toFixed(2);
+      this.contestResult.time = parseFloat((t/1000).toFixed(3));
+      this.contestResult.duration = t;
+      this.contestResult.point = parseFloat((tp+this.contestResult.coins*0.6).toFixed(2));
       this.gamemode = 0;
-      this.contestResult.point2 = (this.contestResult.maxTime * 2000 * 0.6 + tp).toFixed(2);
+      this.contestResult.point2 = parseFloat((this.contestResult.maxTime * 2000 * 0.6 + tp).toFixed(2));
+      this.contestResult.avgPoint = (this.contestResult.point+this.contestResult.point2)/2;
       this.contestRecord.push(this.contestResult);
     },
     uploadContest(){
-      this.$message.error({message: "开发中"})
-
+      // this.$message.error({message: "开发中"})
+      this.upLoadDialog = true;
+    },
+    uploadContestResult(){
+      let d = {
+        coins: this.contestResult.coins,
+        duration: this.contestResult.duration,
+        coinPoint: this.contestResult.point,
+        maxPoint: this.contestResult.point2,
+        avgPoint: this.contestResult.avgPoint,
+        time: new Date().getTime(),
+        nickName: this.form.nickName
+      }
+      let ver = d.coins.toString()+d.duration.toString()+"TYHHYT"+d.coinPoint.toString()+d.maxPoint.toString()+"yuwan"+d.time.toString();
+      d.ver = md5(ver);
+      console.log(d);
+      PostContest(d).then(res=>{
+        if (res.status == 200){
+          if(res.data.status == "error"){
+            this.$message.error("提交比赛结果失败，请重试"+res.data.msg);
+          }else if(res.data.status == "success"){
+            this.$message.success("提交比赛结果成功");
+            this.upLoadDialog = false;
+            this.contestResult = {
+              coins: 0,
+              duration: 0,
+              maxTime: 0,
+              point: 0,
+              point2: 0,
+              avgPoint: 0
+            }
+            this.coverLayer = 1;
+          }
+        }
+      })
     }
   }
 }
